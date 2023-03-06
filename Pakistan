@@ -1,0 +1,51 @@
+#------------------------------------------------------
+#ANÁLISIS DESCRPTIVO DE LOS DATOS
+#------------------------------------------------------
+pakistan <- read_excel("Pakistan.xlsx")
+str(pakistan)
+summary(pakistan)
+
+#Cargamos librerías
+library(fields)
+library(geoR)
+library(akima)
+library(rgeos)
+
+#------------------------------------------------------
+#CAMBIO DE COORDENADAS
+#------------------------------------------------------
+coord = SpatialPoints(cbind(pakistan$longitude,
+                            pakistan$latitude),
+                           proj4string = CRS("+proj=longlat"))
+
+UTM = (c("+proj=utm +zone=42 +datum=WGS84
+                  +units=m +no_defs"))
+utm_coord =  as.data.frame(spTransform(coord, CRS(UTM)))
+
+#plot(utm_coord, axes = TRUE, main = "UTM Coordinates", col = "red")
+
+pakistan_utm <- data.frame(utm_coord, pakistan$airQuality, pakistan$waterQuality)
+
+#------------------------------------------------------
+#Convertimos df en un objeto geodata
+#------------------------------------------------------
+geodata_utm <- as.geodata(pakistan_utm)
+
+#Graficos
+plot(geodata_utm, qt.col = c("purple","pink","green","yellow"))
+
+#x11()
+#plot(geodata_utm, scatter3d = T)
+
+#------------------------------------------------------
+#REGRESIÓN POLINOMIAL
+#------------------------------------------------------
+fit1=lm(pakistan.airQuality~coords.x1+coords.x2, 
+        data=pakistan_utm)
+summary(fit1)
+plot(fit1$residuals)
+
+residual1=residuals(fit1)
+plot(pakistan_utm$coords.x1,residual1)
+plot(pakistan_utm$coords.x2,residual1)
+
