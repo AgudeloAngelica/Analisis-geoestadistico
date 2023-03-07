@@ -1,0 +1,99 @@
+---
+title: "Análisis geoestadística"
+output: html_document
+date: ""
+---
+
+### Análisis descriptivo de los datos
+
+```{r setup, include = FALSE}
+library(readxl)
+library(ggplot2)
+library(patchwork)
+library(fields)
+library(geoR)
+library(akima)
+library(rgeos)
+```
+Cargamos la base de datos que contiene 32 observaciones de la calidad del aire y del agua en la ciudad de Pakistan para el año 2020 con sus respectivas coordenadas geográficas
+```{r}
+pakistan <- read_excel("Pakistan_md.xlsx")
+```
+
+```{r,echo = FALSE}
+pakistan <- read_excel("Pakistan.xlsx")
+knitr::kable(summary(pakistan[c(3:6)]))
+```
+
+
+### Cambio de coordenadas
+Para el análisis geoestadístico se genera una transformación de las coordenadas geográficas a planas
+```{r}
+coord = SpatialPoints(cbind(pakistan$longitude,pakistan$latitude),
+                            proj4string = CRS("+proj=longlat"))
+
+UTM = (c("+proj=utm +zone=43 +datum=WGS84 +units=m +no_defs"))
+utm_coord =  as.data.frame(spTransform(coord, CRS(UTM)))
+
+pakistan_utm <- data.frame(utm_coord,pakistan$airQuality,pakistan$waterQuality)
+```
+```{r, echo = FALSE}
+g1<-ggplot(pakistan_utm,aes(coords.x1,pakistan.airQuality,color = as.factor(1))) +
+    geom_point() + scale_colour_viridis_d() +
+    labs(x = "X", y = "Calidad del aire") +
+    theme_bw() + theme(legend.position = "none")
+
+g2<-ggplot(pakistan_utm,aes(coords.x2,pakistan.airQuality,color = as.factor(1))) +
+  geom_point() +scale_colour_viridis_d() +
+  labs(x = "X", y = "Calidad del aire") +
+  theme_bw() + theme(legend.position = "none")
+
+g1+g2
+```
+
+### Regresión Polinomial
+
+Con el fin de eliminar la tendencia o no estacionariedad en los datos, se aplica un modelo de regresión polinomial
+```{r,echo = FALSE}
+fit1=lm(pakistan.airQuality~coords.x1+coords.x2, 
+        data=pakistan_utm)
+pander::pander(summary(fit1))
+
+data_fit1 <- data.frame(pakistan_utm, residuales = residuals(fit1))
+
+r1 <- ggplot(data_fit1,aes(coords.x1,residuales,color = as.factor(1))) +
+  geom_point() +scale_colour_viridis_d() +
+  labs(x = "X", y = "Residuales") +
+  theme_bw() + theme(legend.position = "none")
+
+r2 <- ggplot(data_fit1,aes(coords.x2,residuales,color = as.factor(1))) +
+  geom_point() +scale_colour_viridis_d() +
+  labs(x = "X", y = "Residuales") +
+  theme_bw() + theme(legend.position = "none")
+
+r1+r2
+```
+
+### Estimacion del semivariograma empirico
+
+Convertimos la base en un objeto geodata 
+
+```{r,echo = FALSE}
+pakistan_mod <- data.frame(pakistan_utm$coords.x1,pakistan_utm$coords.x2,residuales = residuals(fit1))
+geodata <- as.geodata(pakistan_mod)
+
+#Graficos
+plot(geodata, qt.col = c("purple","pink","green","yellow"))
+```
+
+Se calcula el variograma de manera empírica
+
+```{r}
+vari1 <- variog(geodata,max.dist = 600000)
+```
+```{r,echo=FALSE}
+plot(vari1)
+ini1 <- eyefit(vari1)
+```
+
+
